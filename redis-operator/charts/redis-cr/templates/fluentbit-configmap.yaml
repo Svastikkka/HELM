@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-monitor-configmap
+  labels:
+    release: {{ .Release.Name }}
+data:
+  fluent-bit.conf: |+
+    [INPUT]
+        Name        tail
+        Path        /opt/redis-logs/*.log
+    [OUTPUT]
+        Name loki
+        Match *
+        Host loki.observability.svc.cluster.local
+        port 3100
+        #BatchWait 1s
+        #BatchSize 1001024
+        #auto_kubernetes_labels on
+        Log_Level debug
+        Labels job=redis-log, application=redis, namespace=cache
+        line_format json

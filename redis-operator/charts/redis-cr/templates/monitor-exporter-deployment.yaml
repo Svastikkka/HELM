@@ -1,0 +1,84 @@
+{{- if .Values.monitor.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-monitor
+  labels:
+#    {{ .Values.additionalLabels | toYaml | nindent 4 }}
+    release: {{ .Release.Name }}
+  {{- if .Values.annotations }}
+  annotations:
+{{ toYaml .Values.annotations | indent 4 }}
+  {{- end }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{ .Values.additionalLabels | toYaml | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{ .Values.additionalLabels | toYaml | nindent 8 }}
+    spec:
+      {{- if .Values.monitor.imagePullSecrets }}
+      imagePullSecrets:
+      {{ toYaml .Values.monitor.imagePullSecrets | indent 8 }}
+      {{- end }}
+      containers:
+      - name: {{ .Chart.Name }}-monitor-exporter
+        image: {{ .Values.monitor.image }}
+        command:
+        - sh
+        - -exc
+        - |
+          # tail -f /dev/null
+          export REDIS_MASTER=$(redis-cli -h rfs-sh-redis.cache.svc.cluster.local -p 26379 SENTINEL get-master-addr-by-name mymaster | awk '{print $1}' | head -1) && \
+          redis-cli -h $REDIS_MASTER -p 6379 --user default -a {{ .Values.redis.auth.password }} monitor | tee /opt/redis-logs/redis-monitor.log 
+        securityContext:
+          {{- toYaml .Values.monitor.securityContext | nindent 12 }}
+        resources:
+          {{- toYaml .Values.monitor.resources | nindent 12 }}
+        volumeMounts:
+          - name: redis-logs
+            mountPath: /opt/redis-logs
+
+
+      - name: {{ .Chart.Name }}-monitor-fluentbit
+        image: fluent/fluent-bit:2.0-debug
+      
+        {{- if .Values.monitor.securityContext }}
+        securityContext: 
+          {{- toYaml .Values.monitor.securityContext | nindent 12 }}
+        {{- end }}
+         
+        volumeMounts:
+          - name: redis-logs
+            mountPath: /opt/redis-logs
+          - name: fluentbit-config
+            mountPath: /fluent-bit/etc/fluent-bit.conf
+            subPath: fluent-bit.conf
+
+      volumes:
+      - name: redis-logs
+        emptyDir: {}
+      - name: fluentbit-config
+        configMap:
+          name: {{ .Release.Name }}-monitor-configmap
+
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,39 @@
+# Labesl in this section should be match with "Pod selectors" in corresponding namespace in Fargate profile
+additionalLabels:
+  app.kubernetes.io/fabric-role: cache
+# Definitions for sentinel pods
+sentinel:
+  replicas: 3
+  resources:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      cpu: 100m
+      memory: 100Mi
+# Definitions for redis cluster pods
+redis:
+  clusterName: "sh-redis"
+  replicas: 3
+  resources:
+    requests:
+      cpu: 256m
+      memory: 450Mi
+    limits:
+      cpu: 256m
+      memory: 450Mi
+  auth:
+    secretName: "redis-auth"
+    password: "oSLnne4ydPHEu7J"
+
+monitor:
+  enabled: true
+  image: redis:6.2.6-alpine
+  securityContext: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi

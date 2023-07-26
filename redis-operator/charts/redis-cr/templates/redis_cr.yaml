@@ -1,0 +1,44 @@
+apiVersion: databases.spotahome.com/v1
+kind: RedisFailover
+metadata:
+  name: {{ .Values.redis.clusterName }}
+  labels:
+    # These two labels will be propagated.
+    # app.example.com/label1: value
+    # app.example.com/label2: value
+    {{ .Values.additionalLabels | toYaml | nindent 4 }}
+    # This one wont be, as there is a non-empty whitelist and the regexp doesnt match it.
+    # anotherlabel: value
+spec:
+  sentinel:
+    replicas: {{ .Values.sentinel.replicas }}
+    affinity:
+      podAntiAffinity: {}
+    podAnnotations:
+      prometheus.io/scrape: 'true'
+    exporter:
+      enabled: true
+      image: leominov/redis_sentinel_exporter:1.3.0
+
+    resources:
+      {{- toYaml .Values.sentinel.resources | nindent 6 }}
+
+  redis:
+    replicas: {{ .Values.redis.replicas }}
+    podAnnotations:
+      prometheus.io/scrape: 'true'
+
+    exporter: 
+      enabled: true
+      image: oliver006/redis_exporter:v1.3.5-alpine
+      args:
+        - --web.telemetry-path
+        - /metrics
+      env:
+        - name: REDIS_EXPORTER_LOG_FORMAT
+          value: txt
+    resources:
+      {{- toYaml .Values.redis.resources | nindent 6 }}
+  labelWhitelist: []
+  auth:
+    secretPath: {{ .Values.redis.auth.secretName }}
