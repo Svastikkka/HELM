@@ -1,0 +1,89 @@
+---
+apiVersion: mongodbcommunity.mongodb.com/v1
+kind: MongoDBCommunity
+metadata:
+  name: mongodbcrv2
+  labels:
+    workerType: mongocr
+spec:
+  members: 2
+  type: ReplicaSet
+  version: "4.4.12"
+  security:
+    authentication:
+      modes: ["SCRAM"]
+
+  prometheus:
+    # Metrics endpoint HTTP Basic Auth username
+    username: prometheus-exporter
+
+    # Metrics endpoint HTTP Basic Auth password
+    passwordSecretRef:
+      name: metrics-endpoint-password
+      key: password
+
+  statefulSet:
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/instance: mongocr
+            app.kubernetes.io/name: mongodbcrv2
+            app.kubernetes.io/version: 4.4.12
+        spec:
+          containers:
+            - name: "mongodb-agent"
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 256M
+                limits:
+                  cpu: 200m
+                  memory: 256M
+            - name: "mongod"
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 512M
+                limits:
+                  cpu: 250m
+                  memory: 512M
+  users:
+    - name: admin
+      db: admin
+      passwordSecretRef: # a reference to the secret that will be used to generate the user's password
+        name: admin-password
+      roles:
+        - name: clusterAdmin
+          db: admin
+        - name: userAdminAnyDatabase
+          db: admin
+        - name: root
+          db: admin
+      scramCredentialsSecretName: my-scram
+  additionalMongodConfig:
+    storage.wiredTiger.engineConfig.journalCompressor: zlib
+
+# the user credentials will be generated from this secret
+# once the credentials are generated, this secret is no longer required
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: metrics-endpoint-password
+  namespace: mongocr
+type: Opaque
+stringData:
+  password: 'Au7z8y#7avLBrt5'
+#data:
+#  password: QXU3ejh5IzdhdkxCcnQ1Cg==
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: admin-password
+type: Opaque
+data:
+  password: Y3F2N1NnYlFzNDdBdXJjWg==
+---

@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: mongo-express
+  name: mongo-express
+spec:
+  selector:
+    matchLabels:
+      app: mongo-express
+  template:
+    metadata:
+      labels:
+        app: mongo-express
+    spec:
+      containers:
+      - env:
+        - name: ME_CONFIG_MONGODB_ENABLE_ADMIN
+          value: "true"
+        - name: ME_CONFIG_MONGODB_URL
+          value: "mongodb+srv://admin:cqv7SgbQs47AurcZ@mongodbcrv2-svc.mongocr.svc.cluster.local/admin?ssl=false&replicaSet=mongodbcrv2" # Set connect stinrg from secret with ending "%replicaSet=dev-mongodb" - see README
+#          valueFrom:
+#            secretKeyRef:
+#              name: mongodbcr-admin-admin  #Format: <metadata.name>-<auth-db>-<username>
+#              key: connectionString.standardSrv
+        - name: ME_CONFIG_MONGODB_AUTH_DATABASE
+          value: "admin"
+        - name: ME_CONFIG_BASICAUTH_USERNAME
+          value: "me-admin" # Set mongo-express web login name.
+        - name: ME_CONFIG_BASICAUTH_PASSWORD
+          #value: "set_web_password" # Set mongo-express web password.
+          valueFrom:
+            secretKeyRef:
+              name: me-admin-password
+              key: password
+        image: mongo-express:latest
+        imagePullPolicy: Always
+        name: mongo-express
+        ports:
+        - containerPort: 8081
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 200m
+            memory: 128M
+      affinity: {}
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: mongo-express
+  name: mongo-express
+spec:
+  ports:
+  - name: http
+    port: 8081
+    protocol: TCP
+  selector:
+    app: mongo-express
+#  type: LoadBalancer
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: me-admin-password
+type: Opaque
+data:
+  password: VVQ0a2o2bVE2WEg4SEtwVA==

@@ -1,0 +1,22 @@
+## Roles for configuring loki-logger sidecar in Mongo CR for shipping logs to loki
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: loki-logger-mongo-role
+rules:
+  - apiGroups: [""]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: loki-logger-mongo-role-binding
+subjects:
+  - kind: ServiceAccount
+    name: mongodb-database
+roleRef:
+  kind: Role
+  name: loki-logger-mongo-role
+  apiGroup: rbac.authorization.k8s.io
