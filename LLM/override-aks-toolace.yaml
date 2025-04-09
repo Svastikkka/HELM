@@ -1,0 +1,114 @@
+image:
+  repository: vllm/vllm-openai
+  tag: "latest"
+
+serviceAccount:
+  create: false
+  name: ""
+  automount: true
+  annotations:
+    iam.gke.io/gcp-service-account: kubernetes-pods@nonprod1-svc-r4rc.iam.gserviceaccount.com
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 5001
+
+containerPort: 5001
+
+resources:
+  limits:
+    cpu: "20"
+    memory: 84Gi
+    nvidia.com/gpu: "1"
+  requests:
+    cpu: "20"
+    memory: 84Gi
+    nvidia.com/gpu: "1"
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetMemoryUtilizationPercentage: 80
+
+volumes:
+  - name: model-cache
+    emptyDir: {}
+  - name: config-volume
+    secret:
+      secretName: jinja-config
+  # - name: toolace-nfs
+  #   persistentVolumeClaim:
+  #     claimName: toolace-pvc
+
+volumeMounts:
+  - name: model-cache
+    mountPath: /root/.cache/huggingface
+  - name: config-volume
+    mountPath: /etc/config
+    readOnly: true
+  # - name: toolace-nfs
+  #   mountPath: /mnt/models
+
+ingress:
+  enabled: true
+  className: "external-nginx"
+
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: 'external-nginx'
+    nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
+
+nodeSelector:
+  kubernetes.azure.com/agentpool: nca100v4
+
+tolerations:
+  - key: "sku"
+    operator: "Equal"
+    value: "gpu"
+    effect: "NoSchedule"
+
+pv:
+  enabled: false
+
+pvc:
+  enabled: false
+
+nfs: {}
+
+namespace: dev
+
+container:
+  secretName: credentials
+
+  command: ["/bin/sh", "-c"]
+  args:
+    - "vllm serve Team-ACE/ToolACE-8B \
+      --trust-remote-code \
+      --enable-chunked-prefill \
+      --max_num_batched_tokens 1024 \
+      --enable-auto-tool-choice \
+      --tool-call-parser pythonic \
+      --gpu_memory_utilization=0.9 \
+      --max_model_len 82000 \
+      --port 5001 \
+      --quantization=fp8 \
+      --max-parallel-loading-workers=4 \
+      --enable-auto-tool-choice \
+      --chat-template /etc/config/template.jinja"
+
+  env:
+    regular:
+      - name: NVIDIA_VISIBLE_DEVICES
+        value: "all"
+      - name: CUDA_VISIBLE_DEVICES
+        value: "0"
+      - name: GGML_CUDA_FORCE_MMQ
+        value: "1"
+      - name: GGML_CUDA_FORCE_CUBLAS
+        value: "1"
+
+    secret:
+      - name: HUGGING_FACE_HUB_TOKEN
+        value: "" # Token

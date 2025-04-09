@@ -1,0 +1,15 @@
+---
+{{- if .Values.pvc.enabled -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "toolace.fullname" . }}-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: {{ .Values.pvc.storage }}
+  volumeMode: Filesystem
+  volumeName: {{ include "toolace.fullname" . }}-pv
+{{- end }}

@@ -1,0 +1,129 @@
+image:
+  repository: vllm/vllm-openai
+  tag: "latest"
+
+serviceAccount:
+  create: false
+  name: ""
+  automount: true
+  annotations:
+    iam.gke.io/gcp-service-account: kubernetes-pods@nonprod1-svc-r4rc.iam.gserviceaccount.com
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 5001
+
+containerPort: 5001
+
+resources:
+  limits:
+    cpu: "23"
+    memory: 180Gi
+    nvidia.com/gpu: "2"
+  requests:
+    cpu: "23"
+    memory: 180Gi
+    nvidia.com/gpu: "2"
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetMemoryUtilizationPercentage: 80
+
+volumes:
+  - name: model-cache
+    emptyDir: {}
+  - name: config-volume
+    secret:
+      secretName: jinja-config
+  # - name: toolace-nfs
+  #   persistentVolumeClaim:
+  #     claimName: toolace-pvc
+
+volumeMounts:
+  - name: model-cache
+    mountPath: /root/.cache/huggingface
+  - name: config-volume
+    mountPath: /etc/config
+    readOnly: true
+  # - name: toolace-nfs
+  #   mountPath: /mnt/models
+
+ingress:
+  enabled: true
+  className: "external-nginx"
+  hosts:
+
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: 'external-nginx'
+    nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
+
+nodeSelector:
+  kubernetes.azure.com/agentpool: nc48a100v4nm
+
+tolerations:
+  - key: "sku"
+    operator: "Equal"
+    value: "gpu"
+    effect: "NoSchedule"
+
+pv:
+  enabled: false
+
+pvc:
+  enabled: false
+
+nfs: {}
+
+namespace: dev
+
+container:
+  secretName: credentials
+
+  command: ["/bin/sh", "-c"]
+  args:
+    - "vllm serve unsloth/Llama-4-Scout-17B-16E-Instruct \
+      --dtype bfloat16  \
+      --enforce-eager  \
+      --gpu-memory-utilization 0.98 \
+      --trust-remote-code \
+      --max_num_batched_tokens 1024 \
+      --enable-auto-tool-choice \
+      --tool-call-parser pythonic \
+      --port 5001 \
+      --quantization bitsandbytes \
+      --load-format bitsandbytes \
+      --max-model-len 8128 \
+      --tensor-parallel-size 2"
+
+  env:
+    regular:
+      - name: NVIDIA_VISIBLE_DEVICES
+        value: "all"
+      - name: CUDA_VISIBLE_DEVICES
+        value: "0,1"
+      - name: GGML_CUDA_FORCE_MMQ
+        value: "1"
+      - name: GGML_CUDA_FORCE_CUBLAS
+        value: "1"
+      - name: NCCL_P2P_LEVEL
+        value: "NVL"
+      - name: VLLM_HOST_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      - name: RAY_NODE_IP_ADDRESS
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      # - name: DISABLE_TORCH_COMPILE
+      #   value: "1" 
+      # - name: VLLM_ENFORCE_EAGER
+      #   value: "true"
+  
+    secret:
+      - name: HUGGING_FACE_HUB_TOKEN
+        value: "" # Token

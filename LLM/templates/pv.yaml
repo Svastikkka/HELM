@@ -1,0 +1,21 @@
+---
+{{- if .Values.pv.enabled -}}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "toolace.fullname" . }}-pv
+spec:
+  persistentVolumeReclaimPolicy: Retain
+  accessModes:
+  - ReadWriteMany
+  capacity:
+    storage:  {{ .Values.pv.storage }}
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: {{ include "toolace.fullname" . }}-pvc
+    namespace: {{ .Values.namespace }}
+  nfs:
+    server: {{ .Values.nfs.server }}
+    path: {{ .Values.nfs.path }}
+{{- end }}
