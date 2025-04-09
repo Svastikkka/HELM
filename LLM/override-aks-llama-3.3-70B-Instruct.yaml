@@ -52,7 +52,7 @@ volumeMounts:
   #   mountPath: /mnt/models
 
 ingress:
-  enabled: true
+  enabled: false
   className: "external-nginx"
   hosts:
 
