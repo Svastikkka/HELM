@@ -19,11 +19,11 @@ containerPort: 5001
 resources:
   limits:
     cpu: "20"
-    memory: 64Gi
+    memory: 84Gi
     nvidia.com/gpu: "1"
   requests:
     cpu: "20"
-    memory: 64Gi
+    memory: 84Gi
     nvidia.com/gpu: "1"
 
 autoscaling:
@@ -93,7 +93,7 @@ container:
 
   command: ["/bin/sh", "-c"]
   args:
-    - "vllm serve unsloth/Llama-4-Scout-17B-16E-Instruct \
+    - "vllm serve Team-ACE/ToolACE-8B \
       --trust-remote-code \
       --enable-chunked-prefill \
       --max_num_batched_tokens 1024 \
@@ -117,9 +117,9 @@ container:
         value: "1"
       - name: GGML_CUDA_FORCE_CUBLAS
         value: "1"
-      - name: PYTORCH_CUDA_ALLOC_CONF
-        value: "expandable_segments:True"
 
     secret:
       - name: HUGGING_FACE_HUB_TOKEN
         value: "" # token
+
+jinjaTemplatePath: "files/template.jinja"

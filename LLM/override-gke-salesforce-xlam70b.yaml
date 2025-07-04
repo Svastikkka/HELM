@@ -1,0 +1,134 @@
+image:
+  repository: vllm/vllm-openai
+  tag: "v0.8.0"
+
+serviceAccount:
+  create: false
+  name: ""
+  automount: true
+  annotations:
+    iam.gke.io/gcp-service-account: kubernetes-pods@nonprod1-svc-r4rc.iam.gserviceaccount.com
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 5001
+
+containerPort: 5001
+
+resources:
+  limits:
+    cpu: "10"
+    memory: 80Gi
+    nvidia.com/gpu: "2"
+  requests:
+    cpu: "10"
+    memory: 80Gi
+    nvidia.com/gpu: "2"
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetMemoryUtilizationPercentage: 80
+
+volumes:
+  - name: model-cache
+    emptyDir: {}
+  - name: config-volume
+    secret:
+      secretName: jinja-config-salesforce-xlam70b
+  - name: xlam-tool-code
+    secret:
+      secretName: xlam-tool-parser-salesforce-xlam70b
+
+volumeMounts:
+  - name: model-cache
+    mountPath: /root/.cache/huggingface
+  - name: config-volume
+    mountPath: /etc/config
+    readOnly: false
+  - name: xlam-tool-code
+    mountPath: /app/tools
+    readOnly: true
+
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+  - host: api-dev.llm.example.com
+    paths:
+      - path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - api-dev.llm.example.com
+    secretName: llm-salesforce-xlam70b-tls
+
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: 'nginx'
+    nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
+
+nodeSelector:
+  cloud.google.com/gke-accelerator: "nvidia-a100-80gb"
+  cloud.google.com/gke-accelerator-count: "2"
+
+pv:
+  enabled: false
+  storage: 100Gi
+pvc:
+  enabled: false
+  storage: 50Gi
+nfs:
+  server: "10.90.1.66"
+  path: "/videoclone/models/ToolACE-8B"
+
+namespace: dev
+
+container:
+  secretName: credentials-salesforce-xlam70b
+  secretName2: jinja-config-salesforce-xlam70b
+  secretName3: xlam-tool-parser-salesforce-xlam70b
+
+  command: ["/bin/sh", "-c"]
+  args:
+    - "vllm serve Salesforce/Llama-xLAM-2-70b-fc-r \
+      --dtype bfloat16  \
+      --enforce-eager  \
+      --gpu-memory-utilization 0.90 \
+      --trust-remote-code \
+      --port 5001 \
+      --quantization bitsandbytes \
+      --load-format bitsandbytes \
+      --max-model-len 80000 \
+      --tensor-parallel-size 2"
+
+  env:
+    regular:
+      - name: NVIDIA_VISIBLE_DEVICES
+        value: "all"
+      - name: CUDA_VISIBLE_DEVICES
+        value: "0,1"
+      - name: GGML_CUDA_FORCE_MMQ
+        value: "1"
+      - name: GGML_CUDA_FORCE_CUBLAS
+        value: "1"
+      - name: NCCL_P2P_LEVEL
+        value: "NVL"
+      - name: VLLM_LOGGING_LEVEL
+        value: DEBUG
+      - name: VLLM_HOST_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      - name: RAY_NODE_IP_ADDRESS
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+
+    secret:
+      - name: HUGGING_FACE_HUB_TOKEN
+        value: "" # token
+
+jinjaTemplatePath: "files/template.jinja"

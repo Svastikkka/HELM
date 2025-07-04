@@ -18,12 +18,12 @@ containerPort: 5001
 
 resources:
   limits:
-    cpu: "20"
-    memory: 64Gi
+    cpu: "22"
+    memory: 180Gi
     nvidia.com/gpu: "1"
   requests:
-    cpu: "20"
-    memory: 64Gi
+    cpu: "22"
+    memory: 180Gi
     nvidia.com/gpu: "1"
 
 autoscaling:
@@ -93,19 +93,18 @@ container:
 
   command: ["/bin/sh", "-c"]
   args:
-    - "vllm serve unsloth/Llama-4-Scout-17B-16E-Instruct \
+    - "vllm serve vital-ai/watt-tool-70B-awq \
+      --dtype float16  \
+      --enforce-eager  \
+      --gpu-memory-utilization 0.6 \
       --trust-remote-code \
-      --enable-chunked-prefill \
       --max_num_batched_tokens 1024 \
       --enable-auto-tool-choice \
       --tool-call-parser pythonic \
-      --gpu_memory_utilization=0.9 \
-      --max_model_len 82000 \
       --port 5001 \
-      --quantization=fp8 \
-      --max-parallel-loading-workers=4 \
-      --enable-auto-tool-choice \
-      --chat-template /etc/config/template.jinja"
+      --quantization awq \
+      --max-model-len 8128 \
+      --tensor-parallel-size 1"
 
   env:
     regular:
@@ -117,9 +116,23 @@ container:
         value: "1"
       - name: GGML_CUDA_FORCE_CUBLAS
         value: "1"
-      - name: PYTORCH_CUDA_ALLOC_CONF
-        value: "expandable_segments:True"
-
+      - name: NCCL_P2P_LEVEL
+        value: "NVL"
+      - name: VLLM_HOST_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      - name: RAY_NODE_IP_ADDRESS
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      # - name: DISABLE_TORCH_COMPILE
+      #   value: "1" 
+      # - name: VLLM_ENFORCE_EAGER
+      #   value: "true"
+  
     secret:
       - name: HUGGING_FACE_HUB_TOKEN
         value: "" # token
+
+jinjaTemplatePath: "files/custom.jinja"

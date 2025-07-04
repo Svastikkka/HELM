@@ -1,6 +1,6 @@
 image:
   repository: vllm/vllm-openai
-  tag: "latest"
+  tag: "v0.8.0"
 
 serviceAccount:
   create: false
@@ -18,12 +18,12 @@ containerPort: 5001
 
 resources:
   limits:
-    cpu: "20"
-    memory: 64Gi
+    cpu: "10"
+    memory: 30Gi
     nvidia.com/gpu: "1"
   requests:
-    cpu: "20"
-    memory: 64Gi
+    cpu: "10"
+    memory: 30Gi
     nvidia.com/gpu: "1"
 
 autoscaling:
@@ -37,10 +37,10 @@ volumes:
     emptyDir: {}
   - name: config-volume
     secret:
-      secretName: jinja-config
-  # - name: toolace-nfs
-  #   persistentVolumeClaim:
-  #     claimName: toolace-pvc
+      secretName: jinja-config-salesforce
+  - name: xlam-tool-code
+    secret:
+      secretName: xlam-tool-parser-salesforce
 
 volumeMounts:
   - name: model-cache
@@ -48,78 +48,91 @@ volumeMounts:
   - name: config-volume
     mountPath: /etc/config
     readOnly: true
-  # - name: toolace-nfs
-  #   mountPath: /mnt/models
+  - name: xlam-tool-code
+    mountPath: /app/tools
+    readOnly: true
 
 ingress:
   enabled: true
-  className: "external-nginx"
+  className: "nginx"
   hosts:
-  - host: api-dev-azure.llm.example.com
+  - host: api-dev.llm.example.com
     paths:
       - path: /
         pathType: ImplementationSpecific
   tls:
   - hosts:
-    - api-dev-azure.llm.example.com
-    secretName: llm-tls
+    - api-dev.llm.example.com
+    secretName: llm-meltemi-tls
 
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    kubernetes.io/ingress.class: 'external-nginx'
+    kubernetes.io/ingress.class: 'nginx'
     nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
 
 nodeSelector:
-  kubernetes.azure.com/agentpool: nca100v4
-
-tolerations:
-  - key: "sku"
-    operator: "Equal"
-    value: "gpu"
-    effect: "NoSchedule"
+  cloud.google.com/gke-accelerator: nvidia-tesla-a100
+  cloud.google.com/gke-accelerator-count: "1"
 
 pv:
   enabled: false
-
+  storage: 100Gi
 pvc:
   enabled: false
-
-nfs: {}
+  storage: 50Gi
+nfs:
+  server: "10.90.1.66"
+  path: "/videoclone/models/ToolACE-8B"
 
 namespace: dev
 
 container:
-  secretName: credentials
+  secretName: credentials-meltemi
+  secretName2: jinja-config-meltemi
+  secretName3: xlam-tool-parser-meltemi
 
   command: ["/bin/sh", "-c"]
   args:
-    - "vllm serve unsloth/Llama-4-Scout-17B-16E-Instruct \
+    - "vllm serve ilsp/Meltemi-7B-v1 \
       --trust-remote-code \
       --enable-chunked-prefill \
       --max_num_batched_tokens 1024 \
       --enable-auto-tool-choice \
       --tool-call-parser pythonic \
       --gpu_memory_utilization=0.9 \
-      --max_model_len 82000 \
       --port 5001 \
       --quantization=fp8 \
-      --max-parallel-loading-workers=4 \
-      --enable-auto-tool-choice \
-      --chat-template /etc/config/template.jinja"
+      --enable-auto-tool-choice"
 
   env:
     regular:
+      - name: PYTHONPATH
+        value: /app/tools
       - name: NVIDIA_VISIBLE_DEVICES
         value: "all"
       - name: CUDA_VISIBLE_DEVICES
-        value: "0"
+        value: "0,1"
       - name: GGML_CUDA_FORCE_MMQ
         value: "1"
       - name: GGML_CUDA_FORCE_CUBLAS
         value: "1"
-      - name: PYTORCH_CUDA_ALLOC_CONF
-        value: "expandable_segments:True"
+      - name: VLLM_LOGGING_LEVEL
+        value: DEBUG
+      - name: NCCL_P2P_LEVEL
+        value: "NVL"
+      - name: VLLM_LOGGING_LEVEL
+        value: DEBUG
+      - name: VLLM_HOST_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      - name: RAY_NODE_IP_ADDRESS
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
 
     secret:
       - name: HUGGING_FACE_HUB_TOKEN
         value: "" # token
+
+jinjaTemplatePath: "files/template.jinja"

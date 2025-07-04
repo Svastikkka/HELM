@@ -18,12 +18,12 @@ containerPort: 5001
 
 resources:
   limits:
-    cpu: "10"
-    memory: 64Gi
+    cpu: "23"
+    memory: 180Gi
     nvidia.com/gpu: "1"
   requests:
-    cpu: "10"
-    memory: 64Gi
+    cpu: "23"
+    memory: 180Gi
     nvidia.com/gpu: "1"
 
 autoscaling:
@@ -35,42 +35,56 @@ autoscaling:
 volumes:
   - name: model-cache
     emptyDir: {}
-  - name: toolace-nfs
-    persistentVolumeClaim:
-      claimName: toolace-pvc
   - name: config-volume
     secret:
       secretName: jinja-config
+  # - name: toolace-nfs
+  #   persistentVolumeClaim:
+  #     claimName: toolace-pvc
 
 volumeMounts:
   - name: model-cache
     mountPath: /root/.cache/huggingface
-  - name: toolace-nfs
-    mountPath: /mnt/models
   - name: config-volume
     mountPath: /etc/config
     readOnly: true
+  # - name: toolace-nfs
+  #   mountPath: /mnt/models
 
 ingress:
   enabled: true
-  className: "nginx"
+  className: "external-nginx"
+  hosts:
+  - host: api-dev-azure.llm.example.com
+    paths:
+      - path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - api-dev-azure.llm.example.com
+    secretName: llm-tls
 
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    kubernetes.io/ingress.class: 'nginx'
+    kubernetes.io/ingress.class: 'external-nginx'
     nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
 
 nodeSelector:
-  cloud.google.com/gke-accelerator: nvidia-tesla-a100
-  cloud.google.com/gke-accelerator-count: "2"
+  kubernetes.azure.com/agentpool: nca100v4
+
+tolerations:
+  - key: "sku"
+    operator: "Equal"
+    value: "gpu"
+    effect: "NoSchedule"
 
 pv:
-  storage: 100Gi
+  enabled: false
+
 pvc:
-  storage: 50Gi
-nfs:
-  server: "10.90.1.66"
-  path: "/videoclone/models/ToolACE-8B"
+  enabled: false
+
+nfs: {}
 
 namespace: dev
 
@@ -79,19 +93,19 @@ container:
 
   command: ["/bin/sh", "-c"]
   args:
-    - "vllm serve watt-ai/watt-tool-8B \
+    - "vllm serve meta-llama/Llama-3.3-70B-Instruct \
+      --dtype bfloat16  \
+      --enforce-eager  \
+      --gpu-memory-utilization 0.7 \
       --trust-remote-code \
-      --enable-chunked-prefill \
       --max_num_batched_tokens 1024 \
       --enable-auto-tool-choice \
       --tool-call-parser pythonic \
-      --gpu_memory_utilization=0.9 \
-      --max_model_len 82000 \
       --port 5001 \
-      --quantization=fp8 \
-      --max-parallel-loading-workers=4 \
-      --enable-auto-tool-choice \
-      --chat-template /etc/config/template.jinja"
+      --quantization bitsandbytes \
+      --load-format bitsandbytes \
+      --max-model-len 8128 \
+      --tensor-parallel-size 1"
 
   env:
     regular:
@@ -103,7 +117,23 @@ container:
         value: "1"
       - name: GGML_CUDA_FORCE_CUBLAS
         value: "1"
-
+      - name: NCCL_P2P_LEVEL
+        value: "NVL"
+      - name: VLLM_HOST_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      - name: RAY_NODE_IP_ADDRESS
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      # - name: DISABLE_TORCH_COMPILE
+      #   value: "1" 
+      # - name: VLLM_ENFORCE_EAGER
+      #   value: "true"
+  
     secret:
       - name: HUGGING_FACE_HUB_TOKEN
-        value: "" # Token
+        value: "" # token
+
+jinjaTemplatePath: "files/template.jinja"

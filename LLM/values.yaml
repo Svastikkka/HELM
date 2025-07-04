@@ -75,13 +75,13 @@ ingress:
     nginx.ingress.kubernetes.io/proxy-set-headers: "true"
     nginx.ingress.kubernetes.io/proxy-websocket: "true"
   hosts:
-    - host: llm.sandbox.voicing.ai
+    - host: llm.sandbox.example.com
       paths:
         - path: /
           pathType: ImplementationSpecific
   tls:
     - hosts:
-      - llm.sandbox.voicing.ai
+      - llm.sandbox.example.com
       secretName: letsencrypt-prod
 
 resources:

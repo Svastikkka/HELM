@@ -1,6 +1,6 @@
 image:
   repository: vllm/vllm-openai
-  tag: "latest"
+  tag: "v0.8.0"
 
 serviceAccount:
   create: false
@@ -18,13 +18,13 @@ containerPort: 5001
 
 resources:
   limits:
-    cpu: "23"
-    memory: 180Gi
-    nvidia.com/gpu: "2"
+    cpu: "10"
+    memory: 80Gi
+    nvidia.com/gpu: "1"
   requests:
-    cpu: "23"
-    memory: 180Gi
-    nvidia.com/gpu: "2"
+    cpu: "10"
+    memory: 80Gi
+    nvidia.com/gpu: "1"
 
 autoscaling:
   enabled: false
@@ -37,80 +37,101 @@ volumes:
     emptyDir: {}
   - name: config-volume
     secret:
-      secretName: jinja-config
-  # - name: toolace-nfs
-  #   persistentVolumeClaim:
-  #     claimName: toolace-pvc
+      secretName: jinja-config-llama3-1
+  - name: xlam-tool-code
+    secret:
+      secretName: xlam-tool-parser-llama3-1
 
 volumeMounts:
   - name: model-cache
     mountPath: /root/.cache/huggingface
   - name: config-volume
     mountPath: /etc/config
+    readOnly: false
+  - name: xlam-tool-code
+    mountPath: /app/tools
     readOnly: true
-  # - name: toolace-nfs
-  #   mountPath: /mnt/models
 
 ingress:
-  enabled: false
-  className: "external-nginx"
+  enabled: true
+  className: "nginx"
   hosts:
+  - host: api-dev.llm2.example.com
+    paths:
+      - path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - api-dev.llm2.example.com
+    secretName: llm-llama3-1-tls
 
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    kubernetes.io/ingress.class: 'external-nginx'
+    kubernetes.io/ingress.class: 'nginx'
     nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
 
 nodeSelector:
-  kubernetes.azure.com/agentpool: nc48a100v4nm
-
-tolerations:
-  - key: "sku"
-    operator: "Equal"
-    value: "gpu"
-    effect: "NoSchedule"
+  cloud.google.com/gke-accelerator: "nvidia-a100-80gb"
+  cloud.google.com/gke-accelerator-count: "1"
 
 pv:
   enabled: false
-
+  storage: 100Gi
 pvc:
   enabled: false
-
-nfs: {}
+  storage: 50Gi
+nfs:
+  server: "10.90.1.66"
+  path: "/videoclone/models/ToolACE-8B"
 
 namespace: dev
 
 container:
-  secretName: credentials
+  secretName: credentials-llama3-1
+  secretName2: jinja-config-llama3-1
+  secretName3: xlam-tool-parser-llama3-1
 
   command: ["/bin/sh", "-c"]
   args:
-    - "vllm serve unsloth/Llama-4-Scout-17B-16E-Instruct \
+    - "vllm serve meta-llama/Llama-3.1-70B-Instruct \
       --dtype bfloat16  \
       --enforce-eager  \
-      --gpu-memory-utilization 0.98 \
+      --gpu-memory-utilization 0.90 \
       --trust-remote-code \
-      --max_num_batched_tokens 1024 \
       --enable-auto-tool-choice \
-      --tool-call-parser pythonic \
       --port 5001 \
       --quantization bitsandbytes \
       --load-format bitsandbytes \
-      --max-model-len 8128 \
-      --tensor-parallel-size 2"
+      --max-model-len 80000"
+  # args:
+  #   - "vllm serve meta-llama/Llama-3.3-70B-Instruct \
+  #     --trust-remote-code \
+  #     --enable-chunked-prefill \
+  #     --max_num_batched_tokens 1024 \
+  #     --enable-auto-tool-choice \
+  #     --tool-call-parser pythonic \
+  #     --gpu_memory_utilization=0.9 \
+  #     --max_model_len 82000 \
+  #     --port 5001 \
+  #     --quantization=fp8 \
+  #     --max-parallel-loading-workers=4 \
+  #     --enable-auto-tool-choice \
+  #     --chat-template /etc/config/template.jinja"
 
   env:
     regular:
       - name: NVIDIA_VISIBLE_DEVICES
         value: "all"
       - name: CUDA_VISIBLE_DEVICES
-        value: "0,1"
+        value: "0"
       - name: GGML_CUDA_FORCE_MMQ
         value: "1"
       - name: GGML_CUDA_FORCE_CUBLAS
         value: "1"
       - name: NCCL_P2P_LEVEL
         value: "NVL"
+      - name: VLLM_LOGGING_LEVEL
+        value: DEBUG
       - name: VLLM_HOST_IP
         valueFrom:
           fieldRef:
@@ -119,11 +140,9 @@ container:
         valueFrom:
           fieldRef:
             fieldPath: status.podIP
-      # - name: DISABLE_TORCH_COMPILE
-      #   value: "1" 
-      # - name: VLLM_ENFORCE_EAGER
-      #   value: "true"
-  
+
     secret:
       - name: HUGGING_FACE_HUB_TOKEN
-        value: "" # Token
+        value: "" # token
+
+jinjaTemplatePath: "files/template.jinja"

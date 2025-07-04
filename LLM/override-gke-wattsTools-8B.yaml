@@ -18,13 +18,13 @@ containerPort: 5001
 
 resources:
   limits:
-    cpu: "20"
-    memory: 84Gi
-    nvidia.com/gpu: "7"
+    cpu: "10"
+    memory: 64Gi
+    nvidia.com/gpu: "1"
   requests:
-    cpu: "20"
-    memory: 84Gi
-    nvidia.com/gpu: "7"
+    cpu: "10"
+    memory: 64Gi
+    nvidia.com/gpu: "1"
 
 autoscaling:
   enabled: false
@@ -35,6 +35,9 @@ autoscaling:
 volumes:
   - name: model-cache
     emptyDir: {}
+  - name: toolace-nfs
+    persistentVolumeClaim:
+      claimName: toolace-pvc
   - name: config-volume
     secret:
       secretName: jinja-config
@@ -42,23 +45,37 @@ volumes:
 volumeMounts:
   - name: model-cache
     mountPath: /root/.cache/huggingface
+  - name: toolace-nfs
+    mountPath: /mnt/models
   - name: config-volume
     mountPath: /etc/config
     readOnly: true
 
 ingress:
-  enabled: false
+  enabled: true
   className: "nginx"
+  hosts:
+  - host: api-dev.llm.example.com
+    paths:
+      - path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - api-dev.llm.example.com
+    secretName: llm-tls
+
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: 'nginx'
+    nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
 
 nodeSelector:
   cloud.google.com/gke-accelerator: nvidia-tesla-a100
   cloud.google.com/gke-accelerator-count: "2"
 
 pv:
-  enabled: false
   storage: 100Gi
 pvc:
-  enabled: false
   storage: 50Gi
 nfs:
   server: "10.90.1.66"
@@ -71,7 +88,7 @@ container:
 
   command: ["/bin/sh", "-c"]
   args:
-    - "vllm serve Team-ACE/ToolACE-8B \
+    - "vllm serve watt-ai/watt-tool-8B \
       --trust-remote-code \
       --enable-chunked-prefill \
       --max_num_batched_tokens 1024 \
@@ -98,4 +115,6 @@ container:
 
     secret:
       - name: HUGGING_FACE_HUB_TOKEN
-        value: "" # Token
+        value: "" # token
+
+jinjaTemplatePath: "files/template.jinja"
