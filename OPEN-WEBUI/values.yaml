@@ -211,7 +211,7 @@ ingress:
   #   nginx.ingress.kubernetes.io/permanent-redirect: "https://chat.example.com"
   #   networking.gke.io/managed-certificates: "mydomain-chat-cert"
   #   # nginx.ingress.kubernetes.io/rewrite-target: /
-  host: "openai-webui.dev.voicing.ai" # update to your real domain
+  host: "openai-webui.dev.example.com" # update to your real domain
   additionalHosts: []
   tls: true
   existingSecret: ""
@@ -325,7 +325,7 @@ service:
 enableOpenaiApi: true
 
 # -- OpenAI base API URL to use. Defaults to the Pipelines service endpoint when Pipelines are enabled, and "https://api.openai.com/v1" if Pipelines are not enabled and this value is blank
-openaiBaseApiUrl: "https://openai-webui.dev.voicing.ai"
+openaiBaseApiUrl: "https://openai-webui.dev.example.com"
 
 # -- OpenAI base API URLs to use. Overwrites the value in openaiBaseApiUrl if set
 openaiBaseApiUrls:
