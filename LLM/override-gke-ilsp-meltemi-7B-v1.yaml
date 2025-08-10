@@ -7,7 +7,7 @@ serviceAccount:
   name: ""
   automount: true
   annotations:
-    iam.gke.io/gcp-service-account: kubernetes-pods@nonprod1-svc-r4rc.iam.gserviceaccount.com
+    iam.gke.io/gcp-service-account: kubernetes-pods@<PROJECT_ID>.iam.gserviceaccount.com
 
 service:
   type: ClusterIP
@@ -111,7 +111,7 @@ container:
       - name: NVIDIA_VISIBLE_DEVICES
         value: "all"
       - name: CUDA_VISIBLE_DEVICES
-        value: "0,1"
+        value: "0"
       - name: GGML_CUDA_FORCE_MMQ
         value: "1"
       - name: GGML_CUDA_FORCE_CUBLAS
@@ -133,6 +133,6 @@ container:
 
     secret:
       - name: HUGGING_FACE_HUB_TOKEN
-        value: "" # token
+        value: ""
 
 jinjaTemplatePath: "files/template.jinja"

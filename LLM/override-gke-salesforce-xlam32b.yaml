@@ -7,7 +7,7 @@ serviceAccount:
   name: ""
   automount: true
   annotations:
-    iam.gke.io/gcp-service-account: kubernetes-pods@nonprod1-svc-r4rc.iam.gserviceaccount.com
+    iam.gke.io/gcp-service-account: kubernetes-pods@<PROJECT_ID>.iam.gserviceaccount.com
 
 service:
   type: ClusterIP
@@ -112,8 +112,8 @@ container:
         --port 5001 \
         --max_model_len 16384 \
         --trust-remote-code \
-        --max_num_batched_tokens 1024 \
-        --quantization=fp8"
+        --quantization=fp8 \
+        --chat-template /etc/config/template.jinja"
 
   env:
     regular:
@@ -131,8 +131,6 @@ container:
         value: DEBUG
       - name: NCCL_P2P_LEVEL
         value: "NVL"
-      - name: VLLM_LOGGING_LEVEL
-        value: DEBUG
       - name: VLLM_HOST_IP
         valueFrom:
           fieldRef:
@@ -144,6 +142,6 @@ container:
 
     secret:
       - name: HUGGING_FACE_HUB_TOKEN
-        value: "" # token
+        value: ""
 
-jinjaTemplatePath: "files/template.jinja"
+jinjaTemplatePath: "files/tool_chat_template_xlam_qwen.jinja"

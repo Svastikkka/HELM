@@ -7,7 +7,7 @@ serviceAccount:
   name: ""
   automount: true
   annotations:
-    iam.gke.io/gcp-service-account: kubernetes-pods@nonprod1-svc-r4rc.iam.gserviceaccount.com
+    iam.gke.io/gcp-service-account: kubernetes-pods@<PROJECT_ID>.iam.gserviceaccount.com
 
 service:
   type: ClusterIP
@@ -131,6 +131,6 @@ container:
   
     secret:
       - name: HUGGING_FACE_HUB_TOKEN
-        value: "" # token
+        value: ""
 
 jinjaTemplatePath: "files/watt-tool-70B.jinja"
