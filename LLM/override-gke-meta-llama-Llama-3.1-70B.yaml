@@ -1,0 +1,148 @@
+image:
+  repository: vllm/vllm-openai
+  tag: "v0.8.0"
+
+serviceAccount:
+  create: false
+  name: ""
+  automount: true
+  annotations:
+    iam.gke.io/gcp-service-account: kubernetes-pods@<PROJECT_ID>.iam.gserviceaccount.com
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 5001
+
+containerPort: 5001
+
+resources:
+  limits:
+    cpu: "10"
+    memory: 80Gi
+    nvidia.com/gpu: "1"
+  requests:
+    cpu: "10"
+    memory: 80Gi
+    nvidia.com/gpu: "1"
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetMemoryUtilizationPercentage: 80
+
+volumes:
+  - name: model-cache
+    emptyDir: {}
+  - name: config-volume
+    secret:
+      secretName: jinja-config-llama3-1
+  - name: xlam-tool-code
+    secret:
+      secretName: xlam-tool-parser-llama3-1
+
+volumeMounts:
+  - name: model-cache
+    mountPath: /root/.cache/huggingface
+  - name: config-volume
+    mountPath: /etc/config
+    readOnly: false
+  - name: xlam-tool-code
+    mountPath: /app/tools
+    readOnly: true
+
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+  - host: api-dev.llm2.example.com
+    paths:
+      - path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - api-dev.llm2.example.com
+    secretName: llm-llama3-1-tls
+
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: 'nginx'
+    nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
+
+nodeSelector:
+  cloud.google.com/gke-accelerator: "nvidia-a100-80gb"
+  cloud.google.com/gke-accelerator-count: "1"
+
+pv:
+  enabled: false
+  storage: 100Gi
+pvc:
+  enabled: false
+  storage: 50Gi
+nfs:
+  server: "10.90.1.66"
+  path: "/videoclone/models/ToolACE-8B"
+
+namespace: dev
+
+container:
+  secretName: credentials-llama3-1
+  secretName2: jinja-config-llama3-1
+  secretName3: xlam-tool-parser-llama3-1
+
+  command: ["/bin/sh", "-c"]
+  args:
+    - "vllm serve meta-llama/Llama-3.1-70B-Instruct \
+      --dtype bfloat16  \
+      --enforce-eager  \
+      --gpu-memory-utilization 0.90 \
+      --trust-remote-code \
+      --enable-auto-tool-choice \
+      --port 5001 \
+      --quantization bitsandbytes \
+      --load-format bitsandbytes \
+      --max-model-len 80000"
+  # args:
+  #   - "vllm serve meta-llama/Llama-3.3-70B-Instruct \
+  #     --trust-remote-code \
+  #     --enable-chunked-prefill \
+  #     --max_num_batched_tokens 1024 \
+  #     --enable-auto-tool-choice \
+  #     --tool-call-parser pythonic \
+  #     --gpu_memory_utilization=0.9 \
+  #     --max_model_len 82000 \
+  #     --port 5001 \
+  #     --quantization=fp8 \
+  #     --max-parallel-loading-workers=4 \
+  #     --enable-auto-tool-choice \
+  #     --chat-template /etc/config/template.jinja"
+
+  env:
+    regular:
+      - name: NVIDIA_VISIBLE_DEVICES
+        value: "all"
+      - name: CUDA_VISIBLE_DEVICES
+        value: "0"
+      - name: GGML_CUDA_FORCE_MMQ
+        value: "1"
+      - name: GGML_CUDA_FORCE_CUBLAS
+        value: "1"
+      - name: NCCL_P2P_LEVEL
+        value: "NVL"
+      - name: VLLM_LOGGING_LEVEL
+        value: DEBUG
+      - name: VLLM_HOST_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      - name: RAY_NODE_IP_ADDRESS
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+
+    secret:
+      - name: HUGGING_FACE_HUB_TOKEN
+        value: ""
+
+jinjaTemplatePath: "files/template.jinja"

@@ -1,0 +1,124 @@
+image:
+  repository: vllm/vllm-openai
+  tag: "v0.8.0"
+
+serviceAccount:
+  create: false
+  name: ""
+  automount: true
+  annotations:
+    iam.gke.io/gcp-service-account: kubernetes-pods@<PROJECT_ID>.iam.gserviceaccount.com
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 5001
+
+containerPort: 5001
+
+resources:
+  limits:
+    cpu: "10"
+    memory: 30Gi
+    nvidia.com/gpu: "1"
+  requests:
+    cpu: "10"
+    memory: 30Gi
+    nvidia.com/gpu: "1"
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetMemoryUtilizationPercentage: 80
+
+volumes:
+  - name: model-cache
+    emptyDir: {}
+  - name: config-volume
+    secret:
+      secretName: jinja-config-mistral
+  - name: xlam-tool-code
+    secret:
+      secretName: xlam-tool-parser-mistral
+
+volumeMounts:
+  - name: model-cache
+    mountPath: /root/.cache/huggingface
+  - name: config-volume
+    mountPath: /etc/config
+    readOnly: true
+  - name: xlam-tool-code
+    mountPath: /app/tools
+    readOnly: true
+
+ingress:
+  enabled: true
+  className: "nginx"
+  hosts:
+  - host: api-dev.llm3.example.com
+    paths:
+      - path: /
+        pathType: ImplementationSpecific
+  tls:
+  - hosts:
+    - api-dev.llm3.example.com
+    secretName: llm-mistral-tls
+
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: 'nginx'
+    nginx.ingress.kubernetes.io/force-ssl-redirect: 'true'
+
+nodeSelector:
+  cloud.google.com/gke-accelerator: nvidia-tesla-a100
+  cloud.google.com/gke-accelerator-count: "1"
+
+pv:
+  enabled: false
+  storage: 100Gi
+pvc:
+  enabled: false
+  storage: 50Gi
+nfs:
+  server: "10.90.1.66"
+  path: "/videoclone/models/ToolACE-8B"
+
+namespace: dev
+
+container:
+  secretName: credentials-mistral
+  secretName2: jinja-config-mistral
+  secretName3: xlam-tool-parser-mistral
+
+  command: ["/bin/sh", "-c"]
+  args:
+    - "vllm serve mistralai/Mistral-7B-Instruct-v0.3 \
+        --chat-template /etc/config/template.jinja \
+        --tensor-parallel-size 1 \
+        --gpu-memory-utilization 0.90 \
+        --dtype bfloat16 \
+        --load-format auto \
+        --max_model_len 32768 \
+        --port 5001 \
+        --max_num_batched_tokens 1024 \
+        --enable-chunked-prefill"
+
+  env:
+    regular:
+      - name: NVIDIA_VISIBLE_DEVICES
+        value: "all"
+      - name: CUDA_VISIBLE_DEVICES
+        value: "0"
+      - name: GGML_CUDA_FORCE_MMQ
+        value: "1"
+      - name: GGML_CUDA_FORCE_CUBLAS
+        value: "1"
+      - name: VLLM_LOGGING_LEVEL
+        value: DEBUG
+
+    secret:
+      - name: HUGGING_FACE_HUB_TOKEN
+        value: ""
+
+jinjaTemplatePath: "files/template.jinja"
