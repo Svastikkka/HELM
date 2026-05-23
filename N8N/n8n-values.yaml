@@ -1,0 +1,43 @@
+postgresql:
+  enabled: false
+
+externalDatabase:
+  host: <POSTGRESQL_URL>
+  user: <POSTGRESQL_USER>
+  password: <POSTGRESQL_PASSWD>
+  database: n8n
+
+service:
+  type: ClusterIP
+
+# ingress:
+#   enabled: true
+#   className: external-nginx
+
+#   hosts:
+#     - host: <N8N_URL>
+#       # paths must be simple strings (not objects). Chart attaches the backend.
+#       paths:
+#         - "/"
+
+#   annotations:
+#     cert-manager.io/cluster-issuer: "CERT-ISSUER"
+#     kubernetes.io/ingress.class: "LB-CLASS-NAME"
+#     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+#   tls:
+#     - hosts:
+#         - <N8N_URL>
+#       secretName: <N8N_URL_SECRET>
+
+# persistence:
+#   enabled: true
+#   size: 10Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 1Gi
